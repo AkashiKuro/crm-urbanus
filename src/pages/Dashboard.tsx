@@ -1,108 +1,124 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   TrendingUp,
-  Flame,
-  Recycle,
+  CheckCircle2,
+  XCircle,
+  CalendarClock,
+  DollarSign,
   ArrowUpRight,
+  Trophy,
 } from "lucide-react";
 import { api } from "../api";
-import type { Lead } from "../types";
-import { STATUS_META, STATUS_ORDER, TAG_META } from "../types";
+import type { Stats } from "../api";
+import { useAuth } from "../auth";
+import type { Lead, User } from "../types";
+import { STAGE_META, STAGE_ORDER, formatBRL } from "../types";
 
-type Stats = Awaited<ReturnType<typeof api.stats>>;
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+function monthLabel(ym: string) {
+  const m = Number(ym.split("-")[1]);
+  return MONTHS[m - 1] ?? ym;
+}
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [sellers, setSellers] = useState<User[]>([]);
+  const [ownerFilter, setOwnerFilter] = useState<number | "">("");
 
   useEffect(() => {
-    api.stats().then(setStats);
-  }, []);
+    api.stats(ownerFilter || undefined).then(setStats);
+  }, [ownerFilter]);
 
-  if (!stats) {
-    return <p className="text-sm text-slate-400">Carregando dashboard...</p>;
-  }
+  useEffect(() => {
+    if (isAdmin) api.listUsers().then((us) => setSellers(us.filter((u) => u.active)));
+  }, [isAdmin]);
+
+  if (!stats) return <p className="text-sm text-slate-400">Carregando dashboard...</p>;
 
   const cards = [
-    {
-      label: "Total de Leads",
-      value: stats.total,
-      icon: Users,
-      color: "bg-brand-500",
-    },
-    {
-      label: "Em Processo",
-      value: stats.byTag.in_process ?? 0,
-      icon: TrendingUp,
-      color: "bg-orange-500",
-    },
-    {
-      label: "Negócios Abertos",
-      value: stats.byStatus.open_deal ?? 0,
-      icon: Flame,
-      color: "bg-sky-500",
-    },
-    {
-      label: "Reciclados",
-      value: stats.byTag.recycled ?? 0,
-      icon: Recycle,
-      color: "bg-cyan-500",
-    },
+    { label: "Leads no mês", value: stats.leadsThisMonth, icon: Users, color: "bg-brand-500" },
+    { label: "Vendas no mês", value: stats.wonThisMonth, icon: CheckCircle2, color: "bg-emerald-500" },
+    { label: "Taxa de conversão", value: `${stats.conversion}%`, icon: TrendingUp, color: "bg-violet-500" },
+    { label: "Faturado no mês", value: formatBRL(stats.wonValueThisMonth), icon: DollarSign, color: "bg-amber-500", small: true },
   ];
 
-  const maxStatus = Math.max(
-    1,
-    ...STATUS_ORDER.map((s) => stats.byStatus[s] ?? 0)
-  );
+  const maxStage = Math.max(1, ...STAGE_ORDER.map((s) => stats.byStage[s] ?? 0));
+  const maxMonthly = Math.max(1, ...stats.monthly.map((m) => m.count));
+  const last6 = stats.monthly.slice(-6);
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Dashboard</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-sm text-slate-400">
+            {isAdmin && !ownerFilter
+              ? "Desempenho geral da equipe"
+              : "Acompanhe seu desempenho de vendas"}
+          </p>
+        </div>
+        {isAdmin && (
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value ? Number(e.target.value) : "")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+          >
+            <option value="">Equipe inteira</option>
+            {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+          </select>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((c) => (
-          <div
-            key={c.label}
-            className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
-          >
+          <div key={c.label} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span
-                className={`grid h-10 w-10 place-items-center rounded-xl text-white ${c.color}`}
-              >
+              <span className={`grid h-10 w-10 place-items-center rounded-xl text-white ${c.color}`}>
                 <c.icon size={18} />
               </span>
               <ArrowUpRight size={16} className="text-slate-300" />
             </div>
-            <p className="mt-4 text-3xl font-bold text-slate-800">{c.value}</p>
+            <p className={`mt-4 font-bold text-slate-800 ${c.small ? "text-xl" : "text-3xl"}`}>
+              {c.value}
+            </p>
             <p className="text-sm text-slate-400">{c.label}</p>
           </div>
         ))}
       </div>
 
+      {/* segunda linha de indicadores */}
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <MiniStat label="Em aberto (valor)" value={formatBRL(stats.openValue)} />
+        <MiniStat label="Perdidos no mês" value={String(stats.lostThisMonth)} icon={<XCircle size={15} className="text-rose-400" />} onClick={() => navigate("/perdidos")} />
+        <MiniStat label="Tarefas pendentes" value={String(stats.tasksPending)} icon={<CalendarClock size={15} className="text-sky-400" />} onClick={() => navigate("/agenda")} />
+        <MiniStat label="Total de leads" value={String(stats.total)} />
+      </div>
+
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* funil */}
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm lg:col-span-2">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
-            Leads por status
+            Negociações em andamento por etapa
           </h2>
           <div className="space-y-4">
-            {STATUS_ORDER.map((s) => {
-              const v = stats.byStatus[s] ?? 0;
+            {STAGE_ORDER.map((s) => {
+              const v = stats.byStage[s] ?? 0;
               return (
                 <div key={s}>
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="flex items-center gap-2 text-slate-600">
-                      <span
-                        className={`h-2 w-2 rounded-full ${STATUS_META[s].dot}`}
-                      />
-                      {STATUS_META[s].label}
+                      <span className={`h-2 w-2 rounded-full ${STAGE_META[s].dot}`} />
+                      {STAGE_META[s].label}
                     </span>
                     <span className="text-slate-400">{v}</span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-slate-100">
-                    <div
-                      className={`h-2 rounded-full ${STATUS_META[s].dot}`}
-                      style={{ width: `${(v / maxStatus) * 100}%` }}
-                    />
+                    <div className={`h-2 rounded-full ${STAGE_META[s].dot}`} style={{ width: `${(v / maxStage) * 100}%` }} />
                   </div>
                 </div>
               );
@@ -110,40 +126,119 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* leads por mes */}
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
-            Leads recentes
+            Leads por mês
           </h2>
-          <div className="space-y-3">
-            {stats.recent.map((lead: Lead) => (
-              <div key={lead.id} className="flex items-center gap-3">
-                <img
-                  src={`https://i.pravatar.cc/64?u=${encodeURIComponent(
-                    lead.email || lead.name
-                  )}`}
-                  className="h-8 w-8 rounded-full object-cover"
-                  alt={lead.name}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-700">
-                    {lead.name}
-                  </p>
-                  <p className="truncate text-xs text-slate-400">
-                    {lead.email || lead.phone}
-                  </p>
+          {last6.length === 0 ? (
+            <p className="text-sm text-slate-400">Sem dados ainda.</p>
+          ) : (
+            <div className="flex h-40 items-end justify-between gap-2">
+              {last6.map((m) => (
+                <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
+                  <div className="flex w-full flex-1 items-end">
+                    <div
+                      className="w-full rounded-t-md bg-brand-400"
+                      style={{ height: `${(m.count / maxMonthly) * 100}%` }}
+                      title={`${m.count} leads`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400">{monthLabel(m.month)}</span>
                 </div>
-                <span
-                  className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
-                    TAG_META[lead.tag].className
-                  }`}
-                >
-                  {TAG_META[lead.tag].label}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ranking de vendedores (admin, visao geral) */}
+      {isAdmin && !ownerFilter && stats.perSeller.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Trophy size={16} className="text-amber-500" /> Desempenho por vendedor
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-slate-400">
+                <tr>
+                  <th className="py-2 font-medium">Vendedor</th>
+                  <th className="py-2 font-medium">Leads</th>
+                  <th className="py-2 font-medium">Em aberto</th>
+                  <th className="py-2 font-medium">Vendas</th>
+                  <th className="py-2 font-medium">Faturado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.perSeller.map((s) => (
+                  <tr
+                    key={s.id}
+                    className="cursor-pointer border-t border-slate-50 hover:bg-slate-50/60"
+                    onClick={() => setOwnerFilter(s.id)}
+                  >
+                    <td className="py-2.5 font-medium text-slate-700">{s.name}</td>
+                    <td className="py-2.5 text-slate-500">{s.total}</td>
+                    <td className="py-2.5 text-slate-500">{s.abertos}</td>
+                    <td className="py-2.5 text-slate-500">{s.vendas}</td>
+                    <td className="py-2.5 font-semibold text-emerald-600">{formatBRL(s.faturado)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </div>
+      )}
+
+      {/* leads recentes */}
+      <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-sm font-semibold text-slate-700">Leads recentes</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {stats.recent.map((lead: Lead) => (
+            <button
+              key={lead.id}
+              onClick={() => navigate(`/leads/${lead.id}`)}
+              className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 text-left hover:bg-slate-50"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-700">{lead.name}</p>
+                <p className="truncate text-xs text-slate-400">{lead.model || lead.email || lead.phone}</p>
+              </div>
+              {lead.value > 0 && (
+                <span className="whitespace-nowrap text-xs font-semibold text-slate-600">
+                  {formatBRL(lead.value)}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  icon,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`rounded-xl border border-slate-100 bg-white p-4 text-left shadow-sm ${
+        onClick ? "hover:bg-slate-50" : "cursor-default"
+      }`}
+    >
+      <p className="flex items-center gap-1 text-xs text-slate-400">
+        {icon} {label}
+      </p>
+      <p className="mt-1 text-lg font-bold text-slate-800">{value}</p>
+    </button>
   );
 }

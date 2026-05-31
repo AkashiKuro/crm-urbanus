@@ -1,36 +1,37 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
+  Filter,
+  CalendarCheck,
+  RotateCcw,
   Users,
-  Contact,
-  Target,
-  Calendar,
-  Activity,
-  BarChart3,
   CircleDot,
 } from "lucide-react";
-
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/accounts", label: "Accounts", icon: Users },
-  { to: "/contacts", label: "Contacts", icon: Contact },
-  { to: "/leads", label: "Leads", icon: Target },
-  { to: "/calendar", label: "Calendar", icon: Calendar },
-  { to: "/activities", label: "Activities", icon: Activity },
-  { to: "/reports", label: "Reports", icon: BarChart3 },
-];
+import { useAuth } from "../auth";
 
 export default function Sidebar() {
+  const { isAdmin } = useAuth();
+
+  const nav = [
+    { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+    { to: "/leads", label: "Funil de Vendas", icon: Filter },
+    { to: "/agenda", label: "Agenda", icon: CalendarCheck },
+    { to: "/perdidos", label: "Leads Perdidos", icon: RotateCcw },
+    ...(isAdmin
+      ? [{ to: "/vendedores", label: "Vendedores", icon: Users }]
+      : []),
+  ];
+
   return (
-    <aside className="w-60 shrink-0 bg-white border-r border-slate-100 flex flex-col">
-      <div className="h-16 flex items-center gap-2 px-6">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-slate-100 bg-white">
+      <div className="flex h-16 items-center gap-2 px-6">
         <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-500 text-white">
           <CircleDot size={18} />
         </span>
-        <span className="text-xl font-bold tracking-tight">CRM</span>
+        <span className="text-lg font-bold tracking-tight">Urbanus CRM</span>
       </div>
 
-      <nav className="px-3 py-2 space-y-1">
+      <nav className="space-y-1 px-3 py-2">
         {nav.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}

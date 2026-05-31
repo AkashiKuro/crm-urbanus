@@ -1,20 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Plus, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { api } from "../api";
-import type { Lead, LeadStatus } from "../types";
-import { STATUS_META, STATUS_ORDER } from "../types";
+import { useAuth } from "../auth";
+import type { Lead, LeadStage, User } from "../types";
+import { STAGE_META, STAGE_ORDER, formatBRL } from "../types";
 import LeadCard from "../components/LeadCard";
-import NewLeadModal from "../components/NewLeadModal";
+import LeadModal from "../components/LeadModal";
+import TaskModal from "../components/TaskModal";
+import OutcomeModal from "../components/OutcomeModal";
 
 export default function Leads() {
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [sellers, setSellers] = useState<User[]>([]);
+  const [ownerFilter, setOwnerFilter] = useState<number | "">("");
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [leadModal, setLeadModal] = useState<"new" | Lead | null>(null);
+  const [taskLead, setTaskLead] = useState<Lead | "open" | null>(null);
+  const [outcome, setOutcome] = useState<{ lead: Lead; type: "won" | "lost" } | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<LeadStage | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      setLeads(await api.listLeads());
+      setLeads(await api.listLeads("em_andamento", ownerFilter || undefined));
     } finally {
       setLoading(false);
     }
@@ -22,11 +34,23 @@ export default function Leads() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerFilter]);
 
-  async function handleCreate(data: Partial<Lead>) {
-    const created = await api.createLead(data);
-    setLeads((prev) => [created, ...prev]);
+  useEffect(() => {
+    if (isAdmin) {
+      api.listUsers().then((us) => setSellers(us.filter((u) => u.active)));
+    }
+  }, [isAdmin]);
+
+  async function handleSubmit(data: Partial<Lead>) {
+    if (leadModal && leadModal !== "new") {
+      const updated = await api.updateLead(leadModal.id, data);
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } else {
+      const created = await api.createLead(data);
+      if (created.status === "em_andamento") load();
+    }
   }
 
   async function handleDelete(id: number) {
@@ -34,107 +58,148 @@ export default function Leads() {
     await api.deleteLead(id);
   }
 
+  async function handleWon(value: number) {
+    if (!outcome) return;
+    await api.markWon(outcome.lead.id, value);
+    setLeads((prev) => prev.filter((l) => l.id !== outcome.lead.id));
+  }
+
+  async function handleLost(reason: string) {
+    if (!outcome) return;
+    await api.markLost(outcome.lead.id, reason);
+    setLeads((prev) => prev.filter((l) => l.id !== outcome.lead.id));
+  }
+
+  async function handleDrop(stage: LeadStage) {
+    setOverCol(null);
+    const id = dragId;
+    setDragId(null);
+    if (id == null) return;
+    const lead = leads.find((l) => l.id === id);
+    if (!lead || lead.stage === stage) return;
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage } : l)));
+    try {
+      await api.updateLead(id, { stage });
+    } catch {
+      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: lead.stage } : l)));
+    }
+  }
+
   const grouped = useMemo(() => {
-    const g: Record<LeadStatus, Lead[]> = {
-      new: [],
-      open: [],
-      in_progress: [],
-      open_deal: [],
-    };
-    for (const l of leads) g[l.status]?.push(l);
+    const g = Object.fromEntries(STAGE_ORDER.map((s) => [s, [] as Lead[]])) as Record<LeadStage, Lead[]>;
+    for (const l of leads) g[l.stage]?.push(l);
     return g;
   }, [leads]);
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Leads</h1>
+    <div className="flex h-full flex-col">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Funil de Vendas</h1>
+          <p className="text-sm text-slate-400">{leads.length} negociações em andamento</p>
+        </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            <Download size={16} /> Export
+          {isAdmin && (
+            <select
+              value={ownerFilter}
+              onChange={(e) => setOwnerFilter(e.target.value ? Number(e.target.value) : "")}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+            >
+              <option value="">Todos os vendedores</option>
+              {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            </select>
+          )}
+          <button onClick={() => setTaskLead("open")} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Plus size={16} /> Tarefa
           </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
-          >
+          <button onClick={() => setLeadModal("new")} className="flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600">
             <Plus size={16} /> Novo Lead
           </button>
         </div>
       </div>
 
-      <div className="mb-5 flex items-center gap-3">
-        <FilterChip label="All Status" />
-        <FilterChip label="All Sources" />
-        <button className="ml-auto flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700">
-          <SlidersHorizontal size={15} /> Filter
-        </button>
-      </div>
-
       {loading ? (
-        <p className="text-sm text-slate-400">Carregando leads...</p>
+        <p className="text-sm text-slate-400">Carregando funil...</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {STATUS_ORDER.map((status) => (
-            <Column
-              key={status}
-              status={status}
-              leads={grouped[status]}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="flex flex-1 gap-3 overflow-x-auto pb-4">
+          {STAGE_ORDER.map((stage) => {
+            const items = grouped[stage];
+            const sum = items.reduce((acc, l) => acc + (l.value || 0), 0);
+            return (
+              <div
+                key={stage}
+                onDragOver={(e) => { e.preventDefault(); setOverCol(stage); }}
+                onDrop={() => handleDrop(stage)}
+                className={`flex w-72 shrink-0 flex-col gap-3 rounded-xl p-2 transition ${
+                  overCol === stage ? "bg-brand-50 ring-2 ring-brand-200" : "bg-slate-100/50"
+                }`}
+              >
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <span className={`h-2 w-2 rounded-full ${STAGE_META[stage].dot}`} />
+                      {STAGE_META[stage].label}
+                    </span>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{items.length}</span>
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-slate-400">{formatBRL(sum)}</p>
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2">
+                  {items.map((lead) => (
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      showOwner={isAdmin}
+                      onOpen={(l) => navigate(`/leads/${l.id}`)}
+                      onEdit={(l) => setLeadModal(l)}
+                      onDelete={handleDelete}
+                      onAddTask={(l) => setTaskLead(l)}
+                      onWon={(l) => setOutcome({ lead: l, type: "won" })}
+                      onLost={(l) => setOutcome({ lead: l, type: "lost" })}
+                      onDragStart={(l) => setDragId(l.id)}
+                      onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                    />
+                  ))}
+                  {items.length === 0 && (
+                    <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-xs text-slate-400">
+                      Arraste leads para cá
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {showModal && (
-        <NewLeadModal
-          onClose={() => setShowModal(false)}
-          onCreate={handleCreate}
+      {leadModal && (
+        <LeadModal
+          lead={leadModal === "new" ? null : leadModal}
+          sellers={isAdmin ? sellers : undefined}
+          onClose={() => setLeadModal(null)}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {taskLead && (
+        <TaskModal
+          leads={leads}
+          presetLeadId={taskLead === "open" ? null : taskLead.id}
+          onClose={() => setTaskLead(null)}
+          onSubmit={async (data) => { await api.createTask(data); }}
+        />
+      )}
+
+      {outcome && (
+        <OutcomeModal
+          lead={outcome.lead}
+          type={outcome.type}
+          onClose={() => setOutcome(null)}
+          onConfirmWon={handleWon}
+          onConfirmLost={handleLost}
         />
       )}
     </div>
-  );
-}
-
-function Column({
-  status,
-  leads,
-  onDelete,
-}: {
-  status: LeadStatus;
-  leads: Lead[];
-  onDelete: (id: number) => void;
-}) {
-  const meta = STATUS_META[status];
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2.5 shadow-sm">
-        <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-          {meta.label}
-        </span>
-        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-          {leads.length} Leads
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} onDelete={onDelete} />
-        ))}
-        {leads.length === 0 && (
-          <p className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-            Sem leads
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FilterChip({ label }: { label: string }) {
-  return (
-    <button className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
-      {label}
-      <ChevronDown size={14} className="text-slate-400" />
-    </button>
   );
 }

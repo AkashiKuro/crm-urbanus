@@ -1,73 +1,142 @@
-import { Phone, Mail, MoreVertical, Trash2 } from "lucide-react";
+import {
+  MoreVertical,
+  Trash2,
+  Pencil,
+  CalendarPlus,
+  ThumbsUp,
+  ThumbsDown,
+  Flame,
+  UserCircle2,
+} from "lucide-react";
 import { useState } from "react";
 import type { Lead } from "../types";
-import { TAG_META } from "../types";
+import { formatBRL } from "../types";
+import Stars from "./Stars";
 
 interface Props {
   lead: Lead;
+  showOwner?: boolean;
+  onOpen: (lead: Lead) => void;
+  onEdit: (lead: Lead) => void;
   onDelete: (id: number) => void;
+  onAddTask: (lead: Lead) => void;
+  onWon: (lead: Lead) => void;
+  onLost: (lead: Lead) => void;
+  onDragStart: (lead: Lead) => void;
+  onDragEnd: () => void;
 }
 
-export default function LeadCard({ lead, onDelete }: Props) {
+function coolingDays(lead: Lead): number {
+  const d = lead.updated_at ? new Date(lead.updated_at).getTime() : Date.now();
+  return Math.floor((Date.now() - d) / 86400000);
+}
+
+export default function LeadCard({
+  lead,
+  showOwner,
+  onOpen,
+  onEdit,
+  onDelete,
+  onAddTask,
+  onWon,
+  onLost,
+  onDragStart,
+  onDragEnd,
+}: Props) {
   const [menu, setMenu] = useState(false);
-  const tag = TAG_META[lead.tag];
-  const avatar = `https://i.pravatar.cc/80?u=${encodeURIComponent(
-    lead.email || lead.name
-  )}`;
+  const cooling = coolingDays(lead);
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <img
-          src={avatar}
-          alt={lead.name}
-          className="h-9 w-9 rounded-full object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800">
-            {lead.name}
-          </p>
-          <p className="text-xs text-slate-400">Today 10:30PM</p>
-        </div>
-        <div className="relative">
+    <div
+      draggable
+      onDragStart={() => onDragStart(lead)}
+      onDragEnd={onDragEnd}
+      onClick={() => onOpen(lead)}
+      className="group cursor-grab rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand-300 hover:shadow-md active:cursor-grabbing"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">
+          Em andamento
+        </span>
+        {cooling >= 7 && (
+          <span className="flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+            <Flame size={10} /> Esfriando há {cooling} dias
+          </span>
+        )}
+        <div className="relative ml-auto">
           <button
-            onClick={() => setMenu((v) => !v)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenu((v) => !v);
+            }}
             className="text-slate-300 hover:text-slate-500"
           >
             <MoreVertical size={16} />
           </button>
           {menu && (
-            <div className="absolute right-0 z-10 mt-1 w-32 rounded-lg border border-slate-100 bg-white py-1 shadow-lg">
-              <button
-                onClick={() => {
-                  setMenu(false);
-                  onDelete(lead.id);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
-              >
-                <Trash2 size={14} /> Excluir
-              </button>
-            </div>
+            <>
+              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenu(false); }} />
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-100 bg-white py-1 shadow-lg">
+                <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={(e) => { e.stopPropagation(); setMenu(false); onEdit(lead); }} />
+                <MenuItem icon={<CalendarPlus size={14} />} label="Nova tarefa" onClick={(e) => { e.stopPropagation(); setMenu(false); onAddTask(lead); }} />
+                <MenuItem icon={<ThumbsUp size={14} />} label="Marcar venda" onClick={(e) => { e.stopPropagation(); setMenu(false); onWon(lead); }} className="text-emerald-600 hover:bg-emerald-50" />
+                <MenuItem icon={<ThumbsDown size={14} />} label="Marcar perda" onClick={(e) => { e.stopPropagation(); setMenu(false); onLost(lead); }} className="text-rose-600 hover:bg-rose-50" />
+                <div className="my-1 h-px bg-slate-100" />
+                <MenuItem icon={<Trash2 size={14} />} label="Excluir" onClick={(e) => { e.stopPropagation(); setMenu(false); onDelete(lead.id); }} className="text-rose-600 hover:bg-rose-50" />
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      <div className="mt-3 space-y-1.5">
-        <p className="flex items-center gap-2 text-xs text-slate-500">
-          <Phone size={13} className="text-slate-400" />
-          {lead.phone || "—"}
-        </p>
-        <p className="flex items-center gap-2 text-xs text-slate-500">
-          <Mail size={13} className="text-slate-400" />
-          <span className="truncate">{lead.email || "—"}</span>
-        </p>
+      <p className="truncate text-sm font-semibold text-slate-800">{lead.name}</p>
+      {lead.model && <p className="truncate text-xs text-slate-500">{lead.model}</p>}
+
+      <div className="mt-2 flex items-center justify-between">
+        <Stars value={lead.rating} />
+        {lead.value > 0 && (
+          <span className="text-xs font-semibold text-slate-700">{formatBRL(lead.value)}</span>
+        )}
       </div>
 
-      <span
-        className={`mt-3 inline-block rounded-md px-2 py-1 text-[11px] font-medium ${tag.className}`}
-      >
-        {tag.label}
-      </span>
+      {showOwner && (
+        <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-400">
+          <UserCircle2 size={13} /> {lead.owner_name || "Sem responsável"}
+        </p>
+      )}
+
+      <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddTask(lead);
+          }}
+          className="flex w-full items-center justify-center gap-1 rounded-md bg-slate-50 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100"
+        >
+          <CalendarPlus size={12} /> Criar tarefa
+        </button>
+      </div>
     </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  className = "text-slate-600",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: (e: React.MouseEvent) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 ${className}`}
+    >
+      {icon} {label}
+    </button>
   );
 }

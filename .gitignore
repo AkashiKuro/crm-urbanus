@@ -5,5 +5,7 @@ dist
 .env
 .env.local
 .vercel
+*.tsbuildinfo
+_dev.log
 server/data/*.db
 server/data/*.db-*
