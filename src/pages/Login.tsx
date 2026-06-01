@@ -38,14 +38,14 @@ export default function Login() {
           className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
         >
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Email</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500">Usuário</span>
             <input
-              type="email"
+              type="text"
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input"
-              placeholder="seu@email.com"
+              placeholder="seu usuário"
             />
           </label>
 
@@ -71,11 +71,6 @@ export default function Login() {
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
-
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Acesso de teste — Admin: admin@urbanus.com / admin123 · Vendedor:
-          vendedor@urbanus.com / vendedor123
-        </p>
       </div>
     </div>
   );

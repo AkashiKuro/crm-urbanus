@@ -51,7 +51,7 @@ export default function Users() {
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">Nome</th>
-                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Usuário</th>
                 <th className="px-4 py-3 font-medium">Perfil</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3"></th>
@@ -175,8 +175,8 @@ function UserModal({
             <input value={name} onChange={(e) => setName(e.target.value)} className="input" autoFocus />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Email *</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input" />
+            <span className="mb-1 block text-xs font-medium text-slate-500">Usuário *</span>
+            <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} className="input" placeholder="ex: joao" />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-500">Perfil</span>

@@ -24,11 +24,11 @@ export async function login(body) {
   const email = (body?.email || "").toString().trim();
   const password = (body?.password || "").toString();
   if (!email || !password) {
-    return { status: 400, body: { error: "Informe email e senha" } };
+    return { status: 400, body: { error: "Informe usuario e senha" } };
   }
   const u = await repo.getUserByEmail(email);
   if (!u || !verifyPassword(password, u.password)) {
-    return { status: 401, body: { error: "Email ou senha incorretos" } };
+    return { status: 401, body: { error: "Usuario ou senha incorretos" } };
   }
   if (!u.active) {
     return { status: 403, body: { error: "Usuario inativo. Fale com o administrador." } };
@@ -60,13 +60,13 @@ export async function createUser(user, body) {
   const password = (body?.password || "").toString();
   const role = VALID_ROLE.includes(body?.role) ? body.role : "seller";
   if (!name || !email || !password) {
-    return { status: 400, body: { error: "Nome, email e senha sao obrigatorios" } };
+    return { status: 400, body: { error: "Nome, usuario e senha sao obrigatorios" } };
   }
   if (password.length < 6) {
     return { status: 400, body: { error: "A senha deve ter ao menos 6 caracteres" } };
   }
   const exists = await repo.getUserByEmail(email);
-  if (exists) return { status: 409, body: { error: "Ja existe um usuario com esse email" } };
+  if (exists) return { status: 409, body: { error: "Ja existe um usuario com esse nome de usuario" } };
   const created = await repo.createUser({ name, email, password: hashPassword(password), role });
   return { status: 201, body: created };
 }
