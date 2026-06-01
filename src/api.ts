@@ -97,11 +97,11 @@ export const api = {
   deleteLead: (id: number) => http<void>(`/leads/${id}`, { method: "DELETE" }),
 
   markWon: (id: number, value?: number) =>
-    http<Lead>(`/leads/${id}/won`, { method: "POST", body: JSON.stringify({ value }) }),
+    http<Lead>(`/leads/${id}/outcome`, { method: "POST", body: JSON.stringify({ action: "won", value }) }),
   markLost: (id: number, loss_reason: string) =>
-    http<Lead>(`/leads/${id}/lost`, { method: "POST", body: JSON.stringify({ loss_reason }) }),
+    http<Lead>(`/leads/${id}/outcome`, { method: "POST", body: JSON.stringify({ action: "lost", loss_reason }) }),
   reactivateLead: (id: number, stage?: string) =>
-    http<Lead>(`/leads/${id}/reactivate`, { method: "POST", body: JSON.stringify({ stage }) }),
+    http<Lead>(`/leads/${id}/outcome`, { method: "POST", body: JSON.stringify({ action: "reactivate", stage }) }),
 
   // Interactions
   listInteractions: (leadId: number) =>

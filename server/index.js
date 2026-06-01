@@ -60,9 +60,13 @@ app.post("/api/leads", async (req, res) => send(res, await createLead(req.user, 
 app.get("/api/leads/:id", async (req, res) => send(res, await getLead(req.user, id(req))));
 app.put("/api/leads/:id", async (req, res) => send(res, await updateLead(req.user, id(req), req.body)));
 app.delete("/api/leads/:id", async (req, res) => send(res, await deleteLead(req.user, id(req))));
-app.post("/api/leads/:id/won", async (req, res) => send(res, await markWon(req.user, id(req), req.body)));
-app.post("/api/leads/:id/lost", async (req, res) => send(res, await markLost(req.user, id(req), req.body)));
-app.post("/api/leads/:id/reactivate", async (req, res) => send(res, await reactivateLead(req.user, id(req), req.body)));
+app.post("/api/leads/:id/outcome", async (req, res) => {
+  const b = req.body || {};
+  if (b.action === "won") return send(res, await markWon(req.user, id(req), b));
+  if (b.action === "lost") return send(res, await markLost(req.user, id(req), b));
+  if (b.action === "reactivate") return send(res, await reactivateLead(req.user, id(req), b));
+  return res.status(400).json({ error: "Acao invalida" });
+});
 app.get("/api/leads/:id/interactions", async (req, res) => send(res, await listInteractions(req.user, id(req))));
 app.post("/api/leads/:id/interactions", async (req, res) => send(res, await addInteraction(req.user, id(req), req.body)));
 
