@@ -10,12 +10,23 @@ import LeadModal from "../components/LeadModal";
 import TaskModal from "../components/TaskModal";
 import OutcomeModal from "../components/OutcomeModal";
 
+const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+// mes (YYYY-MM) em que o lead foi cadastrado
+function monthOf(l: Lead): string {
+  return (l.created_at || "").slice(0, 7);
+}
+function monthLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  return `${MES[Number(m) - 1] ?? ym}/${(y ?? "").slice(2)}`;
+}
+
 export default function Leads() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sellers, setSellers] = useState<User[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<number | "">("");
+  const [monthFilter, setMonthFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [leadModal, setLeadModal] = useState<"new" | Lead | null>(null);
   const [taskLead, setTaskLead] = useState<Lead | "open" | null>(null);
@@ -85,20 +96,45 @@ export default function Leads() {
     }
   }
 
+  // meses disponiveis (a partir das datas de cadastro dos leads), mais recente primeiro
+  const months = useMemo(
+    () => Array.from(new Set(leads.map(monthOf).filter(Boolean))).sort().reverse(),
+    [leads]
+  );
+
+  // leads visiveis apos o filtro de mes
+  const visibleLeads = useMemo(
+    () => (monthFilter ? leads.filter((l) => monthOf(l) === monthFilter) : leads),
+    [leads, monthFilter]
+  );
+
   const grouped = useMemo(() => {
     const g = Object.fromEntries(STAGE_ORDER.map((s) => [s, [] as Lead[]])) as Record<LeadStage, Lead[]>;
-    for (const l of leads) g[l.stage]?.push(l);
+    for (const l of visibleLeads) g[l.stage]?.push(l);
     return g;
-  }, [leads]);
+  }, [visibleLeads]);
 
   return (
     <div className="flex h-full flex-col">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Funil de Vendas</h1>
-          <p className="text-sm text-slate-400">{leads.length} negociações em andamento</p>
+          <p className="text-sm text-slate-400">
+            {visibleLeads.length} negociações em andamento
+            {monthFilter ? ` · cadastrados em ${monthLabel(monthFilter)}` : ""}
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+          >
+            <option value="">Todos os meses</option>
+            {months.map((m) => (
+              <option key={m} value={m}>{monthLabel(m)}</option>
+            ))}
+          </select>
           {isAdmin && (
             <select
               value={ownerFilter}

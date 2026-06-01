@@ -7,6 +7,7 @@ import {
   ThumbsDown,
   Flame,
   UserCircle2,
+  CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import type { Lead } from "../types";
@@ -29,6 +30,14 @@ interface Props {
 function coolingDays(lead: Lead): number {
   const d = lead.updated_at ? new Date(lead.updated_at).getTime() : Date.now();
   return Math.floor((Date.now() - d) / 86400000);
+}
+
+// data de cadastro do lead (= 1o contato) no formato dd/mm/aa
+function firstContact(lead: Lead): string {
+  if (!lead.created_at) return "";
+  const d = new Date(lead.created_at);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 export default function LeadCard({
@@ -91,6 +100,11 @@ export default function LeadCard({
 
       <p className="truncate text-sm font-semibold text-slate-800">{lead.name}</p>
       {lead.model && <p className="truncate text-xs text-slate-500">{lead.model}</p>}
+      {firstContact(lead) && (
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400" title="Data de cadastro (1º contato)">
+          <CalendarDays size={12} /> 1º contato: {firstContact(lead)}
+        </p>
+      )}
 
       <div className="mt-2 flex items-center justify-between">
         <Stars value={lead.rating} />

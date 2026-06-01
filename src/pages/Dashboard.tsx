@@ -17,11 +17,33 @@ import type { Lead, User } from "../types";
 import { STAGE_META, STAGE_ORDER, formatBRL } from "../types";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 function monthLabel(ym: string) {
   const m = Number(ym.split("-")[1]);
   return MONTHS[m - 1] ?? ym;
 }
+
+// "2026-06" -> "Junho 2026"
+function monthLabelFull(ym: string) {
+  const [y, m] = ym.split("-");
+  return `${MONTHS_FULL[Number(m) - 1] ?? ym} ${y}`;
+}
+
+// lista dos ultimos N meses no formato YYYY-MM (mais recente primeiro)
+function lastMonths(n: number): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  d.setDate(1);
+  for (let i = 0; i < n; i++) {
+    out.push(d.toISOString().slice(0, 7));
+    d.setMonth(d.getMonth() - 1);
+  }
+  return out;
+}
+
+const CURRENT_MONTH = new Date().toISOString().slice(0, 7);
+const MONTH_OPTIONS = lastMonths(12);
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -29,10 +51,11 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [sellers, setSellers] = useState<User[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<number | "">("");
+  const [month, setMonth] = useState<string>(CURRENT_MONTH);
 
   useEffect(() => {
-    api.stats(ownerFilter || undefined).then(setStats);
-  }, [ownerFilter]);
+    api.stats(ownerFilter || undefined, month).then(setStats);
+  }, [ownerFilter, month]);
 
   useEffect(() => {
     if (isAdmin) api.listUsers().then((us) => setSellers(us.filter((u) => u.active)));
@@ -40,11 +63,12 @@ export default function Dashboard() {
 
   if (!stats) return <p className="text-sm text-slate-400">Carregando dashboard...</p>;
 
+  const mShort = MONTHS[Number(month.split("-")[1]) - 1] ?? month;
   const cards = [
-    { label: "Leads no mês", value: stats.leadsThisMonth, icon: Users, color: "bg-brand-500" },
-    { label: "Vendas no mês", value: stats.wonThisMonth, icon: CheckCircle2, color: "bg-emerald-500" },
-    { label: "Taxa de conversão", value: `${stats.conversion}%`, icon: TrendingUp, color: "bg-violet-500" },
-    { label: "Faturado no mês", value: formatBRL(stats.wonValueThisMonth), icon: DollarSign, color: "bg-amber-500", small: true },
+    { label: `Leads em ${mShort}`, value: stats.leadsThisMonth, icon: Users, color: "bg-brand-500" },
+    { label: `Vendas em ${mShort}`, value: stats.wonThisMonth, icon: CheckCircle2, color: "bg-emerald-500" },
+    { label: `Conversão em ${mShort}`, value: `${stats.conversion}%`, icon: TrendingUp, color: "bg-violet-500" },
+    { label: `Faturado em ${mShort}`, value: formatBRL(stats.wonValueThisMonth), icon: DollarSign, color: "bg-amber-500", small: true },
   ];
 
   const maxStage = Math.max(1, ...STAGE_ORDER.map((s) => stats.byStage[s] ?? 0));
@@ -62,16 +86,29 @@ export default function Dashboard() {
               : "Acompanhe seu desempenho de vendas"}
           </p>
         </div>
-        {isAdmin && (
+        <div className="flex flex-wrap gap-2">
           <select
-            value={ownerFilter}
-            onChange={(e) => setOwnerFilter(e.target.value ? Number(e.target.value) : "")}
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
           >
-            <option value="">Equipe inteira</option>
-            {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            {MONTH_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {monthLabelFull(m)}{m === CURRENT_MONTH ? " (atual)" : ""}
+              </option>
+            ))}
           </select>
-        )}
+          {isAdmin && (
+            <select
+              value={ownerFilter}
+              onChange={(e) => setOwnerFilter(e.target.value ? Number(e.target.value) : "")}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+            >
+              <option value="">Equipe inteira</option>
+              {sellers.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -94,7 +131,7 @@ export default function Dashboard() {
       {/* segunda linha de indicadores */}
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <MiniStat label="Em aberto (valor)" value={formatBRL(stats.openValue)} />
-        <MiniStat label="Perdidos no mês" value={String(stats.lostThisMonth)} icon={<XCircle size={15} className="text-rose-400" />} onClick={() => navigate("/perdidos")} />
+        <MiniStat label={`Perdidos em ${mShort}`} value={String(stats.lostThisMonth)} icon={<XCircle size={15} className="text-rose-400" />} onClick={() => navigate("/perdidos")} />
         <MiniStat label="Tarefas pendentes" value={String(stats.tasksPending)} icon={<CalendarClock size={15} className="text-sky-400" />} onClick={() => navigate("/agenda")} />
         <MiniStat label="Total de leads" value={String(stats.total)} />
       </div>

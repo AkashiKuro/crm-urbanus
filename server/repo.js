@@ -211,9 +211,9 @@ const pgRepo = {
     const r = await pool.query("DELETE FROM leads WHERE id = $1", [id]);
     return r.rowCount > 0;
   },
-  async stats({ ownerId } = {}) {
+  async stats({ ownerId, month } = {}) {
     const pool = await getPg();
-    return computeStats(async (sql, params) => (await pool.query(sql, params)).rows, true, ownerId);
+    return computeStats(async (sql, params) => (await pool.query(sql, params)).rows, true, ownerId, month);
   },
 
   // ----- users -----
@@ -468,9 +468,9 @@ const sqliteRepo = {
     const db = await getSqlite();
     return db.prepare("DELETE FROM leads WHERE id = ?").run(id).changes > 0;
   },
-  async stats({ ownerId } = {}) {
+  async stats({ ownerId, month } = {}) {
     const db = await getSqlite();
-    return computeStats(async (sql, params = []) => db.prepare(sql).all(...params), false, ownerId);
+    return computeStats(async (sql, params = []) => db.prepare(sql).all(...params), false, ownerId, month);
   },
 
   // ----- users -----
@@ -576,12 +576,13 @@ const sqliteRepo = {
 /*  Stats                                                              */
 /* ================================================================== */
 
-async function computeStats(query, isPg, ownerId) {
+async function computeStats(query, isPg, ownerId, month) {
   const intC = isPg ? "::int" : "";
   const monthExpr = isPg
     ? "to_char(created_at, 'YYYY-MM')"
     : "strftime('%Y-%m', created_at)";
-  const nowMonth = new Date().toISOString().slice(0, 7);
+  // mes-alvo das metricas "do mes" (formato YYYY-MM); padrao = mes atual
+  const nowMonth = month || new Date().toISOString().slice(0, 7);
 
   // filtro de dono (opcional)
   const ph = isPg ? "$1" : "?";

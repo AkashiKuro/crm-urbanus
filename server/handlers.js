@@ -235,7 +235,9 @@ export async function getStats(user, query = {}) {
   let ownerId = null;
   if (isAdmin(user)) ownerId = query.owner ? Number(query.owner) : null;
   else ownerId = user.id;
-  return { status: 200, body: await repo.stats({ ownerId }) };
+  // mes opcional no formato YYYY-MM; ignora se vier malformado
+  const month = /^\d{4}-\d{2}$/.test(query.month || "") ? query.month : undefined;
+  return { status: 200, body: await repo.stats({ ownerId, month }) };
 }
 
 /* ---------------- Interactions ---------------- */

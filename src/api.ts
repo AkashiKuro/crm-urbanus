@@ -112,7 +112,13 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
 
-  stats: (owner?: number) => http<Stats>(`/stats${owner ? `?owner=${owner}` : ""}`),
+  stats: (owner?: number, month?: string) => {
+    const p = new URLSearchParams();
+    if (owner) p.set("owner", String(owner));
+    if (month) p.set("month", month);
+    const qs = p.toString();
+    return http<Stats>(`/stats${qs ? `?${qs}` : ""}`);
+  },
 
   // Tasks
   listTasks: () => http<Task[]>("/tasks"),
