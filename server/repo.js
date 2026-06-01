@@ -60,8 +60,21 @@ async function getPg() {
   if (!pgPoolPromise) {
     pgPoolPromise = (async () => {
       const { default: pg } = await import("pg");
+      // Remove o parametro sslmode da connection string. O Supabase usa
+      // certificado autoassinado; se "sslmode=require" ficar na URL, o driver pg
+      // sobrescreve a nossa config e volta a validar o certificado (erro
+      // "self-signed certificate in certificate chain"). Tirando o sslmode, o
+      // nosso ssl.rejectUnauthorized:false abaixo passa a valer.
+      let connStr = PG_URL;
+      try {
+        const u = new URL(PG_URL);
+        u.searchParams.delete("sslmode");
+        connStr = u.toString();
+      } catch {
+        connStr = PG_URL.replace(/([?&])sslmode=[^&]*(&|$)/i, "$1").replace(/[?&]$/, "");
+      }
       const pool = new pg.Pool({
-        connectionString: PG_URL,
+        connectionString: connStr,
         ssl: { rejectUnauthorized: false },
         max: 3,
       });
